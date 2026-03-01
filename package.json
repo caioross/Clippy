@@ -1,0 +1,40 @@
+{
+  "name": "clips",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "build:client": "cd client && npm run build",
+    "dist": "npm run build:client && electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "active-win": "^8.2.1",
+    "electron-is-dev": "^3.0.1",
+    "electron-updater": "^6.8.3"
+  },
+  "devDependencies": {
+    "electron": "^40.6.1",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.clips.assistant",
+    "productName": "Clippy",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "index.js",
+      "package.json",
+      "client/dist/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

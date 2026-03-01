@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0); 
+            height: 100vh;
+            position: relative;
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        /* Balão reposicionado para o topo/esquerda */
+        .bubble {
+            position: absolute;
+            top: 10px; 
+            left: 10px;
+            width: 200px; /* Aumentei um pouco para caber as respostas da IA */
+            background: #ffffcc;
+            border: 1px solid #000;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            font-size: 13px;
+            color: black;
+            display: none;
+            cursor: pointer;
+            pointer-events: auto;
+            max-height: 200px;
+            overflow-y: auto; /* Adiciona barra de rolagem se a IA falar muito */
+        }
+        .bubble::after {
+            content: ''; position: absolute; bottom: -11px; right: 20px;
+            border-width: 11px 11px 0; border-style: solid;
+            border-color: #000 transparent transparent transparent;
+        }
+        .bubble::before {
+            content: ''; position: absolute; bottom: -9px; right: 21px;
+            border-width: 10px 10px 0; border-style: solid;
+            border-color: #ffffcc transparent transparent transparent;
+            z-index: 1;
+        }
+
+        /* NOVO: Indicador de Gravação (Bolinha Vermelha) */
+        #rec-indicator {
+            position: absolute; top: 15px; right: 15px; width: 15px; height: 15px;
+            background: red; border-radius: 50%; display: none; 
+            animation: pulse 1s infinite; z-index: 1000;
+        }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    
+    <div id="rec-indicator"></div>
+
+    <div id="speechBubble" class="bubble">
+        Bem melhor agora!<br><br>Tenho meu próprio espaço e sei até pular!
+    </div>
+
+    <div id="canvas-container"></div>
+    
+    <script>
+        // --- SETUP DO THREE.JS (INTACTO) ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 0, 15);
+
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        // --- CRIANDO O CORPO DO CLIPPY (INTACTO) ---
+        const clippyGroup = new THREE.Group();
+        
+        const baseScale = 0.5; 
+        clippyGroup.scale.set(baseScale, baseScale, baseScale);
+        
+        const basePosX = 2.5;
+        const basePosY = -2.0;
+        clippyGroup.position.set(basePosX, basePosY, 0);
+
+        scene.add(clippyGroup);
+
+        const curve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3( 0.8,  1.0, 0), new THREE.Vector3( 0.8, -1.5, 0),
+            new THREE.Vector3( 0.8, -2.5, 0), new THREE.Vector3(-0.8, -2.5, 0),
+            new THREE.Vector3(-0.8,  2.0, 0), new THREE.Vector3(-0.8,  3.0, 0),
+            new THREE.Vector3( 1.8,  3.0, 0), new THREE.Vector3( 1.8, -3.5, 0),
+            new THREE.Vector3( 1.8, -4.5, 0), new THREE.Vector3(-1.8, -4.5, 0),
+            new THREE.Vector3(-1.8,  1.5, 0)
+        ], false, 'centripetal', 0.5);
+
+        const tubeGeom = new THREE.TubeGeometry(curve, 100, 0.4, 16, false);
+        const metalMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8, roughness: 0.3 });
+        const bodyMesh = new THREE.Mesh(tubeGeom, metalMaterial);
+        clippyGroup.add(bodyMesh);
+
+        // --- CRIANDO O ROSTO (INTACTO) ---
+        const faceGroup = new THREE.Group();
+        faceGroup.position.set(0.5, 1.5, 0.4); 
+        clippyGroup.add(faceGroup);
+
+        const blackMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const eyeGeom = new THREE.SphereGeometry(0.2, 16, 16);
+        const eyeL = new THREE.Mesh(eyeGeom, blackMat); eyeL.position.set(-0.5, 0, 0);
+        const eyeR = new THREE.Mesh(eyeGeom, blackMat); eyeR.position.set(0.5, 0, 0);
+        faceGroup.add(eyeL, eyeR);
+
+        const browGeom = new THREE.BoxGeometry(0.5, 0.1, 0.1);
+        const browL = new THREE.Mesh(browGeom, blackMat); browL.position.set(-0.5, 0.5, 0);
+        const browR = new THREE.Mesh(browGeom, blackMat); browR.position.set(0.5, 0.5, 0);
+        faceGroup.add(browL, browR);
+
+        // --- SISTEMA DE ANIMAÇÃO E EXPRESSÕES (INTACTO + ESTADOS NOVOS) ---
+        let targets = {
+            rotX: 0, rotY: 0, rotZ: 0,
+            browLY: 0.5, browRY: 0.5, browLRot: 0, browRRot: 0,
+            eyeScaleY: 1
+        };
+
+        const expressions = [
+            { rotX: 0, rotY: 0, rotZ: 0, browLY: 0.5, browRY: 0.5, browLRot: 0, browRRot: 0, eyeScaleY: 1 }, // Normal
+            { rotX: 0.1, rotY: 0.3, rotZ: 0.1, browLY: 0.8, browRY: 0.3, browLRot: 0.2, browRRot: -0.2, eyeScaleY: 1 }, // Confuso
+            { rotX: 0.2, rotY: 0, rotZ: 0, browLY: 0.3, browRY: 0.3, browLRot: -0.4, browRRot: 0.4, eyeScaleY: 0.8 }, // Bravo
+            { rotX: -0.1, rotY: 0, rotZ: 0, browLY: 0.9, browRY: 0.9, browLRot: 0.1, browRRot: -0.1, eyeScaleY: 1.5 }, // Surpreso
+            { rotX: 0, rotY: -0.4, rotZ: -0.2, browLY: 0.6, browRY: 0.6, browLRot: 0, browRRot: 0, eyeScaleY: 1 } // Curioso
+        ];
+
+        // NOVO: Expressões específicas para a Inteligência Artificial
+        const aiStates = {
+            listening: { rotX: -0.2, rotY: 0.2, rotZ: 0.1, browLY: 0.8, browRY: 0.8, browLRot: 0.1, browRRot: -0.1, eyeScaleY: 1.2 },
+            thinking: { rotX: 0.1, rotY: -0.2, rotZ: -0.1, browLY: 0.7, browRY: 0.4, browLRot: 0.2, browRRot: -0.2, eyeScaleY: 1 }
+        };
+
+        const clock = new THREE.Clock();
+        
+        // Variáveis de controle de Idle Animation
+        let isBlinking = false;
+        let isJumping = false;
+        let jumpTime = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            // 1. A PISCADINHA ALEATÓRIA (INTACTO)
+            if (!isBlinking && Math.random() < 0.01) { 
+                isBlinking = true;
+                targets.eyeScaleY = 0.1; 
+                setTimeout(() => {
+                    targets.eyeScaleY = 1; 
+                    isBlinking = false;
+                }, 150);
+            }
+
+            // 2. A PULADINHA ANIMADA (INTACTO)
+            if (!isJumping && Math.random() < 0.003) { 
+                isJumping = true;
+                jumpTime = 0;
+            }
+
+            let jumpYOffset = 0;
+            let currentScaleY = baseScale;
+
+            if (isJumping) {
+                jumpTime += 0.08; 
+                jumpYOffset = Math.sin(jumpTime) * 3; 
+                
+                if (jumpTime < Math.PI / 2) {
+                    currentScaleY = baseScale * 1.2; 
+                } else {
+                    currentScaleY = baseScale * 0.9; 
+                }
+
+                if (jumpTime >= Math.PI) {
+                    isJumping = false; 
+                    jumpYOffset = 0;
+                }
+            }
+
+            const hover = Math.sin(time * 2) * 0.3;
+            clippyGroup.position.y = basePosY + hover + jumpYOffset;
+            
+            clippyGroup.scale.y = THREE.MathUtils.lerp(clippyGroup.scale.y, currentScaleY, 0.2);
+            clippyGroup.rotation.x = THREE.MathUtils.lerp(clippyGroup.rotation.x, targets.rotX, 0.1);
+            clippyGroup.rotation.y = THREE.MathUtils.lerp(clippyGroup.rotation.y, targets.rotY, 0.1);
+            clippyGroup.rotation.z = THREE.MathUtils.lerp(clippyGroup.rotation.z, targets.rotZ, 0.1);
+            browL.position.y = THREE.MathUtils.lerp(browL.position.y, targets.browLY, 0.1);
+            browR.position.y = THREE.MathUtils.lerp(browR.position.y, targets.browRY, 0.1);
+            browL.rotation.z = THREE.MathUtils.lerp(browL.rotation.z, targets.browLRot, 0.1);
+            browR.rotation.z = THREE.MathUtils.lerp(browR.rotation.z, targets.browRRot, 0.1);
+            eyeL.scale.y = THREE.MathUtils.lerp(eyeL.scale.y, targets.eyeScaleY, 0.5);
+            eyeR.scale.y = THREE.MathUtils.lerp(eyeR.scale.y, targets.eyeScaleY, 0.5);
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+
+        // --- NOVO: LÓGICA DE VOZ CONTÍNUA (WEBSOCKET) ---
+        let ws;
+        let isSystemActive = false;
+
+        function startListeningSystem() {
+            const bubble = document.getElementById('speechBubble');
+            
+            // Conecta com o Python
+            ws = new WebSocket('ws://127.0.0.1:8081/ws');
+            
+            ws.onopen = () => {
+                isSystemActive = true;
+                bubble.innerText = "Sistema de voz ativado!\n\nDiga 'Hey Jarvis' a qualquer momento para falar comigo.";
+                bubble.style.display = 'block';
+                setTimeout(() => bubble.style.display = 'none', 4000);
+            };
+
+            // Reage aos comandos do Python
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                if (data.action === 'wake') {
+                    // Ouviu a palavra mágica!
+                    Object.assign(targets, aiStates.listening);
+                    document.getElementById('rec-indicator').style.display = 'block';
+                    bubble.innerText = "Sim? Estou ouvindo...";
+                    bubble.style.display = 'block';
+                } 
+                else if (data.action === 'thinking') {
+                    // Você ficou em silêncio, ele vai pensar
+                    Object.assign(targets, aiStates.thinking);
+                    document.getElementById('rec-indicator').style.display = 'none';
+                    bubble.innerText = "Pensando...";
+                } 
+                else if (data.action === 'reply') {
+                    // Resposta pronta
+                    Object.assign(targets, expressions[0]);
+                    bubble.innerHTML = `<b>Você:</b> ${data.user_text}<br><br><b>Clippy:</b> ${data.clippy_answer}`;
+                }
+            };
+		
+            // Captura o microfone e envia em tempo real
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                const audioContext = new AudioContext({ sampleRate: 16000 });
+                
+                // NOVO: Força o motor de áudio a acordar caso o navegador tenha bloqueado
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                processor.onaudioprocess = (e) => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const float32Array = e.inputBuffer.getChannelData(0);
+                        const int16Array = new Int16Array(float32Array.length);
+                        // Converte pra formato puro (PCM) para o Python entender
+                        for (let i = 0; i < float32Array.length; i++) {
+                            int16Array[i] = Math.max(-32768, Math.min(32767, float32Array[i] * 32768));
+                        }
+                        ws.send(int16Array.buffer);
+                    }
+                };
+            }).catch(err => {
+                bubble.innerText = "Erro ao acessar o microfone!";
+                bubble.style.display = 'block';
+            });
+        }
+
+        // --- SISTEMA DE ARRASTAR E CLICAR ---
+        const bubble = document.getElementById('speechBubble');
+        let isDragging = false;
+        let startX, startY;
+        let dragDistance = 0;
+
+        container.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dragDistance = 0;
+            startX = e.clientX;
+            startY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                dragDistance += Math.abs(e.movementX) + Math.abs(e.movementY);
+                window.moveTo(e.screenX - startX, e.screenY - startY);
+            }
+        });
+
+        window.addEventListener('load', () => {
+            startListeningSystem();
+        });
+
+        // Agora o clique serve apenas para mudar a expressão dele
+        container.addEventListener('click', () => {
+            if (dragDistance < 5 && isSystemActive) {
+                // Pega uma expressão aleatória do array (exceto a primeira que é a normal)
+                const randomExp = expressions[Math.floor(Math.random() * (expressions.length - 1)) + 1];
+                Object.assign(targets, randomExp);
+                
+                // Volta ao normal depois de 2 segundos
+                setTimeout(() => { Object.assign(targets, expressions[0]); }, 2000);
+            }
+        });
+
+        bubble.addEventListener('click', () => {
+            bubble.style.display = 'none';
+            Object.assign(targets, expressions[0]);
+        });
+    </script>
+</body>
+</html>

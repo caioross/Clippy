@@ -1,0 +1,37 @@
+name: Build and Package Clippy
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18.x
+
+    - name: Install Root Dependencies
+      run: npm install
+
+    - name: Install Client Dependencies
+      run: cd client && npm install
+
+    - name: Build React App & Package Electron Executable
+      run: npm run dist
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Clippy-Windows-Executable
+        path: dist-electron/*.exe
