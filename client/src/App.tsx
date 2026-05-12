@@ -126,6 +126,15 @@ function App() {
           }
         });
 
+        ipcRenderer.on('open-settings', () => {
+          // Open the context menu in the center of the screen
+          setContextMenu({
+            isOpen: true,
+            x: window.innerWidth / 2 - 150,
+            y: window.innerHeight / 2
+          });
+        });
+
         contextInterval = setInterval(async () => {
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const sysCtx = await ipcRenderer.invoke('get-system-context');
@@ -145,7 +154,7 @@ function App() {
         await audioContext.resume();
       }
 
-      await audioContext.audioWorklet.addModule('/audio-processor.js');
+      await audioContext.audioWorklet.addModule('./audio-processor.js');
       const source = audioContext.createMediaStreamSource(stream);
       const workletNode = new AudioWorkletNode(audioContext, 'vapi-processor');
 

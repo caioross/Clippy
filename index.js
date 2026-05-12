@@ -68,12 +68,13 @@ function createWindow() {
     });
 
     // Setup Tray
-    const icon = nativeImage.createEmpty();
+    const iconBase64 = "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAZElEQVQ4T2NkoBAwUqifYdQAyXDI0ODg/x/GZ0QyEGwg2ICcnBwGg4MDFhYWP1E2EAw0MDDg4+P7T4oBYAMxDQDRDTIQwgZIgyYkJIQn2EDMw8MDiG4gRMDQAD09Pfzhhw/uSAYCABTzG0X6Wv1hAAAAAElFTkSuQmCC";
+    const icon = nativeImage.createFromDataURL(`data:image/png;base64,${iconBase64}`);
     tray = new Tray(icon);
     tray.setToolTip('Clippy Assistant');
     const contextMenu = Menu.buildFromTemplate([
-        { label: 'Settings', type: 'normal' },
-        { label: 'Sleep', type: 'normal' },
+        { label: 'Wake / Sleep', type: 'normal', click: () => win.webContents.send('global-shortcut-wake') },
+        { label: 'Settings', type: 'normal', click: () => win.webContents.send('open-settings') },
         { label: 'Quit', role: 'quit' }
     ]);
     tray.setContextMenu(contextMenu);
@@ -84,10 +85,12 @@ function createWindow() {
         path: app.getPath('exe')
     });
 
-    // In development mode, load Vite dev server.
-    // Ensure you run `cd client && npm run dev` first.
-    win.loadURL('http://localhost:5173');
-    // For production, you would do: win.loadFile(path.join(__dirname, 'client/dist/index.html'));
+    // Load App
+    if (isDev) {
+        win.loadURL('http://localhost:5173');
+    } else {
+        win.loadFile(path.join(__dirname, 'client', 'dist', 'index.html'));
+    }
 
     mainWindow = win;
 }
