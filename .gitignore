@@ -134,3 +134,9 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Ferramentas internas
+.claude/
+
+# Site de apresentacao = repositorio separado
+/site/
