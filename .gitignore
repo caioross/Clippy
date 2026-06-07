@@ -140,3 +140,8 @@ dist
 
 # Site de apresentacao = repositorio separado
 /site/
+
+# Build artifacts (Electron)
+dist-electron/
+release/
+out/
