@@ -1,3 +1,4 @@
+import os
 import asyncio
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -9,9 +10,18 @@ from core.stt import SpeechToText
 from core.llm import LanguageModel
 from core.tts import TextToSpeech
 
-# Paths
-MODEL_PATH = r"E:\Trebuchet\models\Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
-WHISPER_PATH = r"E:\Trebuchet\models\ggml-small_whisper.bin"
+# Model paths — override with environment variables, otherwise fall back to the
+# original local paths. Point these at your own GGUF LLM + Whisper model:
+#   CLIPPY_LLM_MODEL      -> path to a .gguf model (e.g. Qwen2.5-Coder)
+#   CLIPPY_WHISPER_MODEL  -> path to a ggml/whisper.cpp model
+MODEL_PATH = os.environ.get(
+    "CLIPPY_LLM_MODEL",
+    r"E:\Trebuchet\models\Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf",
+)
+WHISPER_PATH = os.environ.get(
+    "CLIPPY_WHISPER_MODEL",
+    r"E:\Trebuchet\models\ggml-small_whisper.bin",
+)
 
 # Initialization
 wake_detector = WakeWordDetector("hey_jarvis", threshold=0.5)
@@ -31,7 +41,6 @@ app.add_middleware(
 def calculate_rms(audio_array):
     return np.sqrt(np.mean(np.square(audio_array, dtype=np.float32)))
 
-import os
 import webbrowser
 
 def handle_command(text: str) -> bool:

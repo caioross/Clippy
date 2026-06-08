@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# Clippy — Python backend (FastAPI WebSocket server on port 8081)
+# Python 3.10+   ·   install:  pip install -r requirements.txt
+#
+# Pipeline:  wake word (openwakeword) -> STT (Whisper) -> LLM (llama.cpp) -> TTS
+# Bring your own local GGUF + Whisper models and point Clippy at them with the
+# CLIPPY_LLM_MODEL / CLIPPY_WHISPER_MODEL environment variables (see README).
+# ---------------------------------------------------------------------------
+
+# --- Web / async server -----------------------------------------------------
+fastapi>=0.110
+uvicorn>=0.29
+
+# --- Audio / math -----------------------------------------------------------
+numpy>=1.24
+
+# --- Wake word ("hey jarvis") ----------------------------------------------
+# Clippy forces the ONNX inference path on Windows, so onnxruntime is required.
+openwakeword>=0.6.0
+onnxruntime>=1.16
+
+# --- Speech-to-text (Whisper via whisper.cpp bindings) ----------------------
+pywhispercpp>=1.2.0
+
+# --- Local LLM (GGUF models via llama.cpp) ----------------------------------
+# Prebuilt wheels exist for most platforms; a C/C++ toolchain may be needed
+# to compile with GPU (CUDA/Metal) acceleration. See the llama-cpp-python docs.
+llama-cpp-python>=0.2.70
+
+# --- Text-to-speech (Microsoft Edge neural voices — free, keyless, online) --
+edge-tts>=7.2.7
